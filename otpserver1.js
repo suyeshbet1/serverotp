@@ -238,7 +238,101 @@ app.post("/reset-password", async (req, res) => {
   }
 });
 
+app.get("/cleargameresult", async (req, res) => {
+  try {
+    // -----------------------------
+    // 1. Get current IST time
+    // -----------------------------
+    const nowIst = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+
+    const hours = nowIst.getHours();     // 0–23
+    const minutes = nowIst.getMinutes(); // 0–59
+    const currentMinutes = hours * 60 + minutes;
+
+    // -----------------------------
+    // 2. Allowed window
+    //    04:45 AM → 05:15 AM IST
+    // -----------------------------
+    const startWindow = 4 * 60 + 45; // 285
+    const endWindow = 5 * 60 + 15;   // 315
+
+    // if (currentMinutes < startWindow || currentMinutes > endWindow) {
+    //   return res.status(413).json({
+    //     success: false,
+    //     message: "cleargameresult can only run between 04:45 AM and 05:15 AM IST",
+    //     currentTimeIST: nowIst.toTimeString().slice(0, 5),
+    //   });
+    // }
+
+    // -----------------------------
+    // 3. Clear games collection
+    // -----------------------------
+    const gamesCol = db.collection("games");
+    const snap = await gamesCol.get();
+
+    if (snap.empty) {
+      return res.status(200).json({
+        success: true,
+        processed: 0,
+        message: "No games found",
+      });
+    }
+
+    const BATCH_LIMIT = 500;
+    let batch = db.batch();
+    let opCount = 0;
+    let total = 0;
+
+    for (const doc of snap.docs) {
+      const data = doc.data() || {};
+      const ref = gamesCol.doc(doc.id);
+
+      const payload = {
+        chartLink: data.chartLink ?? null,
+        createdAt: data.createdAt ?? null,
+        gameId: doc.id,
+        name: data.name ?? doc.id,
+        result: "***-**-***",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        clear_result: true,
+        openTime: data.openTime ?? null,
+        closeTime: data.closeTime ?? null,
+      };
+
+      batch.set(ref, payload, { merge: false });
+      opCount++;
+      total++;
+
+      if (opCount >= BATCH_LIMIT) {
+        await batch.commit();
+        batch = db.batch();
+        opCount = 0;
+      }
+    }
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
+
+    console.log(`cleargameresult: processed ${total} game docs`);
+
+    return res.status(200).json({
+      success: true,
+      processed: total,
+      ranAtIST: nowIst.toTimeString().slice(0, 5),
+    });
+  } catch (err) {
+    console.error("cleargameresult failed:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to clear game results",
+    });
+  }
+});
+
 // ================= START SERVER =================
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`OTP server running on port ${PORT}`);
+  console.log(`OTP server running on port clear game ${PORT}`);
 });
