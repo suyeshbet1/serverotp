@@ -62,6 +62,9 @@ function hashOTP(otp) {
   return crypto.createHash("sha256").update(otp).digest("hex");
 }
 // =============================================
+app.get("/", (req, res) => {
+  res.send("Server awake");
+});
 
 // ================= SEND OTP =================
 app.post("/send-otp", async (req, res) => {
@@ -237,6 +240,7 @@ app.post("/reset-password", async (req, res) => {
     });
   }
 });
+
 
 app.get("/cleargameresult", async (req, res) => {
   try {
