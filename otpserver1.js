@@ -63,6 +63,10 @@ function hashOTP(otp) {
 }
 // =============================================
 
+app.get("/", (req, res) => {
+  res.send("Server awake");
+});
+
 // ================= SEND OTP =================
 app.post("/send-otp", async (req, res) => {
   try {
