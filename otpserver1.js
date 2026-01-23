@@ -180,7 +180,7 @@ app.post("/reset-password", async (req, res) => {
       });
     }
 
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+    const cleanPhone = phone.replace(/\D/g, "");
     const email = `${cleanPhone}@userapp.com`;
 
     let uid = null;
