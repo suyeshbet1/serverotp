@@ -62,9 +62,6 @@ function hashOTP(otp) {
   return crypto.createHash("sha256").update(otp).digest("hex");
 }
 // =============================================
-app.get("/", (req, res) => {
-  res.send("Server awake");
-});
 
 // ================= SEND OTP =================
 app.post("/send-otp", async (req, res) => {
@@ -168,80 +165,60 @@ app.post("/verify-otp", async (req, res) => {
 
 // ================= RESET PASSWORD =================
 app.post("/reset-password", async (req, res) => {
-    console.log("REQUEST BODY:", req.body);
+  console.log("REQUEST BODY:", req.body);
   try {
-    const { phone, otp, newPassword } = req.body;
+    const { phone, newPassword } = req.body;
 
-    if (!phone || !otp || !newPassword) {
+    if (!phone || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: "phone, otp and newPassword are required",
+        message: "phone and newPassword are required",
       });
     }
 
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
-    const ref = db.collection("otp_requests").doc(cleanPhone);
-    const snap = await ref.get();
-
-    if (!snap.exists) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP not found or already used",
-      });
-    }
-
-    const data = snap.data();
-
-    if (Date.now() > data.expiresAt) {
-      await ref.delete();
-      return res.status(400).json({
-        success: false,
-        message: "OTP expired",
-      });
-    }
-
-    if (hashOTP(otp) !== data.otpHash) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP",
-      });
-    }
-
-    await ref.delete();
-
     const email = `${cleanPhone}@userapp.com`;
+
+    let uid = null;
 
     try {
       const user = await admin.auth().getUserByEmail(email);
-      await admin.auth().updateUser(user.uid, {
-        password: String(newPassword),
-      });
+      uid = user.uid;
+      await admin.auth().updateUser(user.uid, { password: String(newPassword) });
     } catch (e) {
       if (e.code === "auth/user-not-found") {
-        await admin.auth().createUser({
+        const created = await admin.auth().createUser({
           email,
           phoneNumber: `+91${cleanPhone}`,
           password: String(newPassword),
         });
+        uid = created.uid;
       } else {
         throw e;
       }
     }
 
-    return res.json({
-      success: true,
-      message: "Password updated",
-    });
+    // Ensure Firestore user doc has isResetpassword set to false
+    try {
+      if (uid) {
+        await db.collection('users').doc(uid).set({ isResetpassword: false }, { merge: true });
+      }
+    } catch (e) {
+      console.warn('Failed to clear isResetpassword flag for uid', uid, e.message || e);
+    }
+
+    return res.json({ success: true, message: 'Password updated' });
   } catch (err) {
-    console.error("RESET PASSWORD ERROR:", err.message);
-    return res.status(500).json({
-      success: false,
-      message: "Password reset failed",
-    });
+    console.error('RESET PASSWORD ERROR:', err && err.message ? err.message : err);
+    return res.status(500).json({ success: false, message: 'Password reset failed' });
   }
 });
-
-
+/**
+ * =====================================================
+ * HTTP: Clear results for all games
+ * Route: POST /cleargameresult
+ * =====================================================
+ */
 app.get("/cleargameresult", async (req, res) => {
   try {
     // -----------------------------
@@ -338,5 +315,5 @@ app.get("/cleargameresult", async (req, res) => {
 
 // ================= START SERVER =================
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`OTP server running on port clear game ${PORT}`);
+  console.log(`OTP server running on port ${PORT}`);
 });
