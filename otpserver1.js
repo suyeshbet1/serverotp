@@ -278,6 +278,7 @@ app.get("/cleargameresult", async (req, res) => {
         chartLink: data.chartLink ?? null,
         createdAt: data.createdAt ?? null,
         gameId: doc.id,
+        orderId: data.orderId ?? null,
         name: data.name ?? doc.id,
         result: "***-**-***",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
